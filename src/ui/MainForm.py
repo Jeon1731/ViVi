@@ -6,12 +6,14 @@ import sys
 sys.path.append('src')
 from database import DatabaseManager
 from datetime import datetime
+from vivi.MonitorProtector import MonitorProtector
 
 class MainForm(QWidget):
     def __init__(self, controller):
         super().__init__()
         self.controller = controller
         self.db = DatabaseManager("data/users.db")
+        self.monitor_protector = None
         self.init_ui()
 
     def init_ui(self):
@@ -26,8 +28,9 @@ class MainForm(QWidget):
         self.avatar.setFont(QFont("Arial", 42))
         self.avatar.setStyleSheet("background-color: #E0E0E0; border-radius: 65px;")
 
-        self.toggle_btn = QPushButton("⏸️")
+        self.toggle_btn = QPushButton("▶️")
         self.toggle_btn.setFixedSize(50, 50)
+        self.toggle_btn.setCheckable(True)
         self.toggle_btn.setStyleSheet("""
             QPushButton {
                 background-color: #A6FF4D;
@@ -36,6 +39,7 @@ class MainForm(QWidget):
             }
             QPushButton:hover { background-color: #95E644; }
         """)
+        self.toggle_btn.clicked.connect(self.handle_background_process)
 
         self.log_display = QTextEdit()
         self.log_display.setReadOnly(True)
@@ -57,6 +61,39 @@ class MainForm(QWidget):
         layout.addWidget(self.log_display)
 
         self.setLayout(layout)
+
+    def handle_background_process(self):
+        if self.toggle_btn.isChecked():
+            self.toggle_btn.setText("⏸️")
+            self.start_monitoring()
+        else:
+            self.toggle_btn.setText("▶️")
+            self.stop_monitoring()
+
+    def start_monitoring(self):
+        self.stop_monitoring()
+        self.monitor_protector = MonitorProtector(self.controller.current_user, 5, self)
+        self.monitor_protector.check_finished.connect(self.handle_monitor_result)
+        self.monitor_protector.error.connect(self.handle_monitor_error)
+        self.monitor_protector.start()
+
+    def stop_monitoring(self):
+        if self.monitor_protector and self.monitor_protector.isRunning():
+            self.monitor_protector.stop()
+        self.monitor_protector = None
+
+    def handle_monitor_result(self, is_verified):
+        if is_verified:
+            if self.controller.central_stacked.currentIndex() == 5:
+                self.controller.switch_to_screen(2)
+        elif self.controller.central_stacked.currentIndex() != 5:
+            self.controller.switch_to_screen(5)
+
+    def handle_monitor_error(self, message):
+        self.stop_monitoring()
+        self.toggle_btn.setChecked(False)
+        self.toggle_btn.setText("▶️")
+        self.log_display.setPlainText(message)
 
     def load_logs(self):
         """현재 사용자 로그 조회 및 표시"""
@@ -88,3 +125,6 @@ class MainForm(QWidget):
     def update_logs(self):
         """로그 새로고침"""
         self.load_logs()
+
+    def close_monitoring(self):
+        self.stop_monitoring()
