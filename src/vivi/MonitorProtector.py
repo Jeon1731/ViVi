@@ -64,6 +64,9 @@ class MonitorProtector(QThread):
         if recognizer.face_vector is None:
             return False
 
+        if recognizer.attack == 1:
+            return False
+
         current = np.asarray(recognizer.face_vector, dtype=np.float32).reshape(-1)
         registered = np.asarray(registered_vector, dtype=np.float32).reshape(-1)
         if current.size != registered.size:

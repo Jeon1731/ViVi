@@ -70,12 +70,16 @@ class FaceRegistForm(QWidget):
         self.face_recognizer = FaceRecognizer()
         self.face_recognizer.run(best_frame, best_face)
 
-        if self.face_recognizer.face_vector is not None:
+        if self.face_recognizer.face_vector is not None and self.face_recognizer.attack == 0:
             QMessageBox.information(self, "성공", "얼굴 등록이 완료되었습니다.")
             self.face_registed.emit(self.face_recognizer.face_vector)
             self.controller.switch_to_screen(3)
+        elif self.face_recognizer.attack is not None and self.face_recognizer.attack == 1:
+            QMessageBox.warning(self, "경고", "실제 얼굴을 등록해주세요.")
+            self.controller.switch_to_screen(3)
         else:
             QMessageBox.warning(self, "오류", "얼굴 등록에 실패하였습니다.")
+            self.controller.switch_to_screen(3)
 
 
     def stop_camera_and_proceed(self):

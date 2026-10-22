@@ -73,7 +73,7 @@ class FaceAuthForm(QWidget):
         self.face_recognizer = FaceRecognizer()
         self.face_recognizer.run(best_frame, best_face)
 
-        if self.face_recognizer.face_vector is not None:
+        if self.face_recognizer.face_vector is not None and self.face_recognizer.attack == 0:
             stored_vector = self.db.get_user_vector(self.controller.current_user)
             if stored_vector is None: #(Temp)
                 QMessageBox.warning(self, "오류", "등록된 얼굴 정보를 찾을 수 없습니다.")
@@ -106,8 +106,12 @@ class FaceAuthForm(QWidget):
             else:
                 QMessageBox.warning(self, "인증 실패", "등록된 사용자와 일치하지 않습니다.")
                 self.controller.switch_to_screen(0)
+        elif self.face_recognizer.face_vector is not None and self.face_recognizer == 1:
+            QMessageBox.warning(self, "경고", "실제 얼굴을 인식해주세요.")
+            self.controller.switch_to_screen(0)
         else:
             QMessageBox.warning(self, "오류", "얼굴 인식에 실패하였습니다.")
+            self.controller.switch_to_screen(0)
 
     def stop_camera_and_proceed(self):
         if self.camera_thread and self.camera_thread.isRunning:

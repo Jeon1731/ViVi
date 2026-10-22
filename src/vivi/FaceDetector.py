@@ -9,8 +9,8 @@ class FaceDetector(QObject):
         """Prototype - YuNet Detector"""
         self.yunet_model = "src/vivi/face_detection_yunet_2023mar.onnx"
         self.detector = None # (Temp) Singleton
-        self.best_frame = None
-        self.best_face = [0 for _ in range(15)]
+        self.best_frame = None # (Temp) 객체 안에 저장하지 않고 바로 전달될 수 있도록 변경
+        self.best_face = [0 for _ in range(15)] # (Temp) 객체 안에 저장하지 않고 바로 전달될 수 있도록 변경
         self.max_frames = max_frames
         self.frame_count = 0
 
