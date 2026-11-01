@@ -15,6 +15,8 @@ class LogType(Enum):
 
 
 class DatabaseManager:
+    COSINE_DISTANCE_THRESHOLD = 0.637
+
     def __init__(self, db_path="data/database.db"):
         """데이터베이스 초기화"""
         self.db_path = db_path
@@ -231,7 +233,7 @@ class DatabaseManager:
             if conn is not None:
                 conn.close()
 
-    def check_user(self, username, password):
+    def check_user(self, user_id, password):
         """로그인 확인"""
         conn = None
         try:
@@ -242,17 +244,16 @@ class DatabaseManager:
 
             cursor.execute('''
                 SELECT id FROM users
-                WHERE username = ? AND password = ?
-            ''', (username, hashed_password))
+                WHERE user_id = ? AND password = ?
+            ''', (user_id, hashed_password))
 
             user = cursor.fetchone()
 
             if user:
-                user_id = user[0]
                 self.log_event(user_id, LogType.LOGIN)
-                return True, "로그인 성공!", user_id
+                return True
             else:
-                return False, "아이디 또는 비밀번호가 잘못되었습니다.", None
+                return False
 
         except Exception as e:
             return False, f"오류 발생: {str(e)}", None
@@ -275,6 +276,22 @@ class DatabaseManager:
         except Exception as e:
             print(f"오류 발생: {str(e)}")
             return False
+        finally:
+            if conn is not None:
+                conn.close()
+
+    def get_username_by_id(self, user_id):
+        """사용자 ID로 username 조회"""
+        conn = None
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT username FROM users WHERE id = ?", (user_id,))
+            row = cursor.fetchone()
+            return row[0] if row is not None else None
+        except Exception as e:
+            print(f"사용자 이름 조회 오류: {str(e)}")
+            return None
         finally:
             if conn is not None:
                 conn.close()
@@ -363,6 +380,30 @@ class DatabaseManager:
             return struct.unpack("128f", row[0])
         except Exception as e:
             print(f"얼굴 벡터 조회 오류: {str(e)}")
+            return None
+        finally:
+            if conn is not None:
+                conn.close()
+
+    def find_most_similar_user_id(self, vector):
+        """입력 벡터와 가장 유사한 얼굴 벡터의 사용자 ID 조회"""
+        conn = None
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT m.user_id, vec_distance_cosine(v.embedding, ?) AS distance
+                FROM vectors AS v
+                JOIN user_vec_mapping AS m ON m.vector_id = v.rowid
+                ORDER BY distance ASC
+                LIMIT 1
+            """, (self.serialize_vector(vector),))
+            row = cursor.fetchone()
+            if row is None or row[1] > self.COSINE_DISTANCE_THRESHOLD:
+                return None
+            return row[0]
+        except Exception as e:
+            print(f"유사 얼굴 벡터 조회 오류: {str(e)}")
             return None
         finally:
             if conn is not None:

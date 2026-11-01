@@ -22,6 +22,7 @@ class MainWindowContoller(QMainWindow):
 
         self.login_form = LoginForm(self)
         self.face_auth_form = FaceAuthForm(self)
+        self.face_auth_form.face_authorized.connect(self.login_form.mark_face_auth_success)
         self.main_form = MainForm(self)
         self.registration_form = RegistrationForm(self)
         self.face_regist_form = FaceRegistForm(self)
@@ -53,6 +54,13 @@ class MainWindowContoller(QMainWindow):
                 color: #666666;
             }
             QLineEdit:focus { border: 1px solid #A6FF4D; }
+            QPushButton#FaceAuthBTN {
+                background-color: #E0E0E0; 
+                border-radius: 80px;
+                padding: 30px;
+                font-size: 75px;
+            }
+            QPushButton#FaceAuthBTN:hover { background-color: #C0C0C0; }
             QPushButton#LoginBTN {
                 background-color: #A6FF4D;
                 border: none;

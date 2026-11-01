@@ -11,6 +11,7 @@ class LoginForm(QWidget):
         super().__init__()
         self.controller = controller
         self.db = DatabaseManager("data/database.db")
+        self.face_auth_success = False # True / False
         self.init_ui()
 
     def init_ui(self):
@@ -19,15 +20,21 @@ class LoginForm(QWidget):
         layout.setContentsMargins(40, 50, 40, 50)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # 고정 더미 아바타 (로그인 전)
-        self.avatar = QLabel("🐵")
-        self.avatar.setFixedSize(150, 150)
-        self.avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.avatar.setFont(QFont("Arial", 48))
-        self.avatar.setStyleSheet("background-color: #E0E0E0; border-radius: 75px;")
+        # 얼굴 인식 확인 버튼
+        self.face_auth_btn = QPushButton("🐵")
+        self.face_auth_btn.setObjectName("FaceAuthBTN")
+        self.face_auth_btn.clicked.connect(self.handle_face_auth)
 
-        self.id_textedit = QLineEdit()
-        self.id_textedit.setPlaceholderText("아이디를 입력해주세요.")
+        self.id_textedit = QLabel("🐵을(를) 눌러 얼굴 인식을 완료해주세요.")
+        self.id_textedit.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.id_textedit.setStyleSheet("""
+            QLabel {
+                background-color: ##F5F5F5;
+                padding: 10px 15px;
+                font-size: 13px;
+                color: #666666;
+            }
+        """)
 
         self.pw_textedit = QLineEdit()
         self.pw_textedit.setPlaceholderText("비밀번호를 입력해주세요.")
@@ -45,7 +52,7 @@ class LoginForm(QWidget):
         self.register_btn.setObjectName("RegisterBTN")
         self.register_btn.clicked.connect(self.handle_register)
 
-        layout.addWidget(self.avatar, 0, Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.face_auth_btn, 0, Qt.AlignmentFlag.AlignCenter)
         layout.addSpacing(20)
         layout.addWidget(self.id_textedit)
         layout.addWidget(self.pw_textedit)
@@ -58,28 +65,38 @@ class LoginForm(QWidget):
 
         self.setLayout(layout)
 
+    def handle_face_auth(self):
+        self.controller.switch_to_screen(1)
+
+    def mark_face_auth_success(self):
+        if self.controller.current_user is not None:
+            username = self.db.get_username_by_id(self.controller.current_user)
+        self.face_auth_success = True
+        self.id_textedit.setText(f"안녕하세요, {username}님.\n비밃번호를 입력해 로그인을 완료해주세요.")
+        self.face_auth_btn.setStyleSheet("background-color: #A6FF4D;")
+
     def handle_login(self):
-        username = self.id_textedit.text().strip()
         password = self.pw_textedit.text()
         
-        if not username or not password:
-            QMessageBox.warning(self, "알림", "아이디와 비밀번호를 입력해주세요.")
+        if not password:
+            QMessageBox.warning(self, "알림", "비밀번호를 입력해주세요.")
             return
         
         # 데이터베이스에서 사용자 확인
-        success, message, user_id = self.db.check_user(username, password)
-        
-        if success:
-            QMessageBox.information(self, "성공", message)
-            # 현재 사용자 저장
-            self.controller.current_user = user_id
-            # 입력 필드 초기화
-            self.id_textedit.clear()
-            self.pw_textedit.clear()
-            # 얼굴 인증 화면으로 이동
-            self.controller.switch_to_screen(1)
+        success = self.db.check_user(self.controller.current_user, password)
+
+        if self.face_auth_success:        
+            if success:
+                QMessageBox.information(self, "로그인 성공", "비밀번호 인증이 완료되었습니다.")
+                # 입력 필드 초기화
+                self.id_textedit.clear()
+                self.pw_textedit.clear()
+                # 메인 화면으로 이동
+                self.controller.switch_to_screen(2)
+            else:
+                QMessageBox.warning(self, "오류", "틀린 비밀번호입니다.")
         else:
-            QMessageBox.warning(self, "오류", message)
+            QMessageBox.warning(self, "오류", "얼굴 인식을 먼저 완료해주세요.")
 
     def handle_register(self):
         self.controller.switch_to_screen(3)

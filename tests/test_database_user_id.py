@@ -48,6 +48,50 @@ class DatabaseUserIdTest(unittest.TestCase):
         self.assertEqual(log_user_id, user_id)
         self.assertEqual(mapping_user_id, user_id)
 
+    def test_find_most_similar_user_id_returns_closest_vector(self):
+        first_vector = np.zeros(128, dtype=np.float32)
+        first_vector[0] = 1.0
+        closest_vector = np.zeros(128, dtype=np.float32)
+        closest_vector[1] = 1.0
+
+        self.assertTrue(
+            self.db.register_user("alice", "pass1234", "pass1234", first_vector)[0]
+        )
+        self.assertTrue(
+            self.db.register_user("bob", "pass1234", "pass1234", closest_vector)[0]
+        )
+        expected_user_id = self.db.check_user("bob", "pass1234")[2]
+
+        self.assertEqual(
+            self.db.find_most_similar_user_id(closest_vector), expected_user_id
+        )
+
+    def test_find_most_similar_user_id_rejects_distance_over_threshold(self):
+        stored_vector = np.zeros(128, dtype=np.float32)
+        stored_vector[0] = 1.0
+        query_vector = np.zeros(128, dtype=np.float32)
+        query_vector[1] = 1.0
+        self.assertTrue(
+            self.db.register_user("alice", "pass1234", "pass1234", stored_vector)[0]
+        )
+
+        self.assertIsNone(self.db.find_most_similar_user_id(query_vector))
+
+    def test_get_username_by_id(self):
+        self.assertTrue(
+            self.db.register_user("alice", "pass1234", "pass1234")[0]
+        )
+        conn = sqlite3.connect(self.db_path)
+        try:
+            user_id = conn.execute(
+                "SELECT id FROM users WHERE username = 'alice'"
+            ).fetchone()[0]
+        finally:
+            conn.close()
+
+        self.assertEqual(self.db.get_username_by_id(user_id), "alice")
+        self.assertIsNone(self.db.get_username_by_id("unknown-user-id"))
+
     def test_migrates_legacy_username_references(self):
         legacy_db_path = os.path.join(self.temp_dir.name, "old.db")
         conn = sqlite3.connect(legacy_db_path)

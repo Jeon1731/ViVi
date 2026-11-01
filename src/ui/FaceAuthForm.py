@@ -16,7 +16,7 @@ from vivi.FaceDetector import FaceDetector
 from vivi.FaceRecognizer import FaceRecognizer
 
 class FaceAuthForm(QWidget):
-    face_authorized = Signal(object)
+    face_authorized = Signal()
     COSINE_DISTANCE_THRESHOLD = 0.637
 
     def __init__(self, controller):
@@ -75,37 +75,13 @@ class FaceAuthForm(QWidget):
 
         if self.face_recognizer.face_vector is not None:
             if self.face_recognizer.attack == 0:
-                stored_vector = self.db.get_user_vector(self.controller.current_user)
-                if stored_vector is None: #(Temp)
+                self.controller.current_user = self.db.find_most_similar_user_id(self.face_recognizer.face_vector)
+                if self.controller.current_user is None:
                     QMessageBox.warning(self, "오류", "등록된 얼굴 정보를 찾을 수 없습니다.")
                     self.controller.switch_to_screen(0)
                     return
-
-                current_vector = np.asarray(self.face_recognizer.face_vector, dtype=np.float32)
-                registered_vector = np.asarray(stored_vector, dtype=np.float32)
-                if current_vector.size != registered_vector.size: #(Temp)
-                    QMessageBox.warning(self, "오류", "얼굴 벡터 형식이 올바르지 않습니다.")
-                    self.controller.switch_to_screen(0)
-                    return
-
-                current_norm = np.linalg.norm(current_vector)
-                registered_norm = np.linalg.norm(registered_vector)
-                if current_norm == 0 or registered_norm == 0: #(Temp)
-                    QMessageBox.warning(self, "오류", "얼굴 벡터가 올바르지 않습니다.")
-                    self.controller.switch_to_screen(0)
-                    return
-
-                cosine_similarity = np.dot(current_vector, registered_vector) / (
-                    current_norm * registered_norm
-                )
-                cosine_distance = 1.0 - cosine_similarity
-                is_same_user = cosine_distance <= self.COSINE_DISTANCE_THRESHOLD
-
-                if is_same_user:
-                    self.face_authorized.emit(self.controller.current_user)
-                    self.controller.switch_to_screen(2)
                 else:
-                    QMessageBox.warning(self, "인증 실패", "등록된 사용자와 일치하지 않습니다.")
+                    self.face_authorized.emit()
                     self.controller.switch_to_screen(0)
             else: # attack
                 QMessageBox.warning(self, "경고", "실제 얼굴을 인식해주세요.")
@@ -117,4 +93,4 @@ class FaceAuthForm(QWidget):
     def stop_camera_and_proceed(self):
         if self.camera_thread and self.camera_thread.isRunning:
             self.camera_thread.stop()
-        self.controller.switch_to_screen(2)
+        self.controller.switch_to_screen(0)
