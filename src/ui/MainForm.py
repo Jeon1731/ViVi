@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit, QPushButt
 import sys
 sys.path.append('src')
 from database import DatabaseManager
+from database import LogType
 from datetime import datetime
 from vivi.MonitorProtector import MonitorProtector
 
@@ -87,6 +88,7 @@ class MainForm(QWidget):
             if self.controller.central_stacked.currentIndex() == 5:
                 self.controller.switch_to_screen(2)
         elif self.controller.central_stacked.currentIndex() != 5:
+            self.db.log_event(self.controller.current_user, LogType.LOCK)
             self.controller.switch_to_screen(5)
 
     def handle_monitor_error(self, message):
