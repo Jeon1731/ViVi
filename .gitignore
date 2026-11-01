@@ -12,3 +12,6 @@ tests/assets/
 
 # .onnx
 *.onnx
+
+# .pt
+*.pt
