@@ -15,3 +15,6 @@ tests/assets/
 
 # .pt
 *.pt
+
+# tests/
+tests/

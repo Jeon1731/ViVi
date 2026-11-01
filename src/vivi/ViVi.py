@@ -21,6 +21,21 @@ class FaceRecognizerMFNV3:
 
         return recognizer
 
+    def apply_clahe(self, frame, clip_limit=2.0, grid_size=(8,8)):
+        """컬러 이미지 대응 CLAHE 적용 함수"""
+        # 1. BGR2YCrCb (Y(Luma) 채널 분리용)
+        ycrcb = cv2.cvtColor(frame, cv2.COLOR_BGR2YCrCb)
+        y, cr, cb = cv2.split(ycrcb)
+
+        # 2. CLAHE 객체 생성 및 밝기(Y) 채널에 적용
+        clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=grid_size)
+        y_enhenced = clahe.apply(y)
+
+        # 3. 채널 다시 병합 및 BGR 변환
+        merged = cv2.merge([y_enhenced, cr, cb])
+        return cv2.cvtColor(merged, cv2.COLOR_YCrCb2BGR)
+
+
     def alignCrop(self, frame, face):
         # face
         # 0~3: bbox (x, y, w, h)
@@ -37,6 +52,9 @@ class FaceRecognizerMFNV3:
                 ↓
         [최종 출력: 모델 입력용 정면 얼굴 이미지]   
         """
+        # 0) 조명 보정
+        frame = self.apply_clahe(frame)
+
         h, w = frame.shape[:2]
         lex, ley, rex, rey, nx, ny = face[4:10]
 
