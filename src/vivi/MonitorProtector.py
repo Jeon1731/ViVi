@@ -15,9 +15,9 @@ class MonitorProtector(QThread):
 
     COSINE_DISTANCE_THRESHOLD = 0.637
 
-    def __init__(self, username, time_window=3, parent=None):
+    def __init__(self, user_id, time_window=3, parent=None):
         super().__init__(parent)
-        self.username = username
+        self.user_id = user_id
         self.time_window = time_window
         self._stop_event = threading.Event()
 
@@ -32,8 +32,8 @@ class MonitorProtector(QThread):
             self.error.emit("카메라를 열 수 없습니다.")
             return
 
-        database = DatabaseManager("data/users.db")
-        registered_vector = database.get_user_vector(self.username)
+        database = DatabaseManager("data/database.db")
+        registered_vector = database.get_user_vector(self.user_id)
         if registered_vector is None:
             self.error.emit("현재 사용자의 등록된 얼굴 정보를 찾을 수 없습니다.")
             capture.release()
@@ -64,7 +64,7 @@ class MonitorProtector(QThread):
         if recognizer.face_vector is None:
             return False
 
-        if recognizer.attack == 1:
+        if recognizer.attack != 0:
             return False
 
         current = np.asarray(recognizer.face_vector, dtype=np.float32).reshape(-1)

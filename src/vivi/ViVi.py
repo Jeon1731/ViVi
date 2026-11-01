@@ -90,8 +90,8 @@ class FaceRecognizerMFNV3:
         preprocess = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize(
-                mean=[0.491, 0.372, 0.325],
-                std=[0.364, 0.302, 0.269],
+                mean=[0.562, 0.433, 0.386],
+                std=[0.325, 0.280, 0.258],
             ),
         ])
 
@@ -103,7 +103,13 @@ class FaceRecognizerMFNV3:
             probabilities = classification_logits.softmax(dim=1)[0].cpu()
             embedding = F.normalize(embedding, p=2, dim=1)[0].cpu()
 
-        if probabilities[0] > probabilities[1]: # real > attack
-            return 0, embedding # retval, 128d embedding 
-        else:
-            return 1, embedding # retval, 128d embedding 
+        if probabilities[1] > probabilities[0]:
+            return 1, embedding # retval, 128d embedding
+        elif probabilities[2] > probabilities[0]:
+            return 2, embedding # retval, 128d embedding
+        elif probabilities[3] > probabilities[0]:
+            return 3, embedding # retval, 128d embedding
+        elif probabilities[4] > probabilities[0]:
+            return 4, embedding # retval, 128d embedding
+        else: # real
+            return 0, embedding # retval, 128d embedding

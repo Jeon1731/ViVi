@@ -15,7 +15,7 @@ class RegistrationForm(QWidget):
     def __init__(self, controller):
         super().__init__()
         self.controller = controller
-        self.db = DatabaseManager("data/users.db")
+        self.db = DatabaseManager("data/database.db")
         self.face_vector = None
         self.face_regist_form = None
         self.init_ui()

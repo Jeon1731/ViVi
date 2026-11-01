@@ -10,7 +10,7 @@ class LoginForm(QWidget):
     def __init__(self, controller):
         super().__init__()
         self.controller = controller
-        self.db = DatabaseManager("data/users.db")
+        self.db = DatabaseManager("data/database.db")
         self.init_ui()
 
     def init_ui(self):
@@ -67,12 +67,12 @@ class LoginForm(QWidget):
             return
         
         # 데이터베이스에서 사용자 확인
-        success, message = self.db.check_user(username, password)
+        success, message, user_id = self.db.check_user(username, password)
         
         if success:
             QMessageBox.information(self, "성공", message)
             # 현재 사용자 저장
-            self.controller.current_user = username
+            self.controller.current_user = user_id
             # 입력 필드 초기화
             self.id_textedit.clear()
             self.pw_textedit.clear()

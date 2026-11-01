@@ -22,7 +22,7 @@ class FaceAuthForm(QWidget):
     def __init__(self, controller):
         super().__init__()
         self.controller = controller
-        self.db = DatabaseManager("data/users.db")
+        self.db = DatabaseManager("data/database.db")
         self.camera_thread = None
         self.init_ui()
 
@@ -73,42 +73,43 @@ class FaceAuthForm(QWidget):
         self.face_recognizer = FaceRecognizer()
         self.face_recognizer.run(best_frame, best_face)
 
-        if self.face_recognizer.face_vector is not None and self.face_recognizer.attack == 0:
-            stored_vector = self.db.get_user_vector(self.controller.current_user)
-            if stored_vector is None: #(Temp)
-                QMessageBox.warning(self, "오류", "등록된 얼굴 정보를 찾을 수 없습니다.")
-                self.controller.switch_to_screen(0)
-                return
+        if self.face_recognizer.face_vector is not None:
+            if self.face_recognizer.attack == 0:
+                stored_vector = self.db.get_user_vector(self.controller.current_user)
+                if stored_vector is None: #(Temp)
+                    QMessageBox.warning(self, "오류", "등록된 얼굴 정보를 찾을 수 없습니다.")
+                    self.controller.switch_to_screen(0)
+                    return
 
-            current_vector = np.asarray(self.face_recognizer.face_vector, dtype=np.float32)
-            registered_vector = np.asarray(stored_vector, dtype=np.float32)
-            if current_vector.size != registered_vector.size: #(Temp)
-                QMessageBox.warning(self, "오류", "얼굴 벡터 형식이 올바르지 않습니다.")
-                self.controller.switch_to_screen(0)
-                return
+                current_vector = np.asarray(self.face_recognizer.face_vector, dtype=np.float32)
+                registered_vector = np.asarray(stored_vector, dtype=np.float32)
+                if current_vector.size != registered_vector.size: #(Temp)
+                    QMessageBox.warning(self, "오류", "얼굴 벡터 형식이 올바르지 않습니다.")
+                    self.controller.switch_to_screen(0)
+                    return
 
-            current_norm = np.linalg.norm(current_vector)
-            registered_norm = np.linalg.norm(registered_vector)
-            if current_norm == 0 or registered_norm == 0: #(Temp)
-                QMessageBox.warning(self, "오류", "얼굴 벡터가 올바르지 않습니다.")
-                self.controller.switch_to_screen(0)
-                return
+                current_norm = np.linalg.norm(current_vector)
+                registered_norm = np.linalg.norm(registered_vector)
+                if current_norm == 0 or registered_norm == 0: #(Temp)
+                    QMessageBox.warning(self, "오류", "얼굴 벡터가 올바르지 않습니다.")
+                    self.controller.switch_to_screen(0)
+                    return
 
-            cosine_similarity = np.dot(current_vector, registered_vector) / (
-                current_norm * registered_norm
-            )
-            cosine_distance = 1.0 - cosine_similarity
-            is_same_user = cosine_distance <= self.COSINE_DISTANCE_THRESHOLD
+                cosine_similarity = np.dot(current_vector, registered_vector) / (
+                    current_norm * registered_norm
+                )
+                cosine_distance = 1.0 - cosine_similarity
+                is_same_user = cosine_distance <= self.COSINE_DISTANCE_THRESHOLD
 
-            if is_same_user:
-                self.face_authorized.emit(self.controller.current_user)
-                self.controller.switch_to_screen(2)
-            else:
-                QMessageBox.warning(self, "인증 실패", "등록된 사용자와 일치하지 않습니다.")
+                if is_same_user:
+                    self.face_authorized.emit(self.controller.current_user)
+                    self.controller.switch_to_screen(2)
+                else:
+                    QMessageBox.warning(self, "인증 실패", "등록된 사용자와 일치하지 않습니다.")
+                    self.controller.switch_to_screen(0)
+            else: # attack
+                QMessageBox.warning(self, "경고", "실제 얼굴을 인식해주세요.")
                 self.controller.switch_to_screen(0)
-        elif self.face_recognizer.face_vector is not None and self.face_recognizer == 1:
-            QMessageBox.warning(self, "경고", "실제 얼굴을 인식해주세요.")
-            self.controller.switch_to_screen(0)
         else:
             QMessageBox.warning(self, "오류", "얼굴 인식에 실패하였습니다.")
             self.controller.switch_to_screen(0)

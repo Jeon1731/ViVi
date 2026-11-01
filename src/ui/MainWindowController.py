@@ -15,7 +15,7 @@ class MainWindowContoller(QMainWindow):
         self.setWindowTitle("ViVi")
         self.setFixedSize(380, 620)
         self.normal_window_flags = self.windowFlags()
-        self.current_user = None  # 현재 로그인한 사용자
+        self.current_user = None  # 현재 로그인한 사용자 ID
 
         self.central_stacked = QStackedWidget()
         self.setCentralWidget(self.central_stacked)

@@ -11,7 +11,7 @@ class LogType(Enum):
     """로그 타입 정의"""
     LOGIN = "login"                     # 로그인
     LOGOUT = "logout"                   # 로그아웃
-    FACE_AUTH = "face_auth"             # 얼굴 인증
+    LOCK = "lock"                       # 화면잠김
 
 
 class DatabaseManager:
@@ -43,47 +43,143 @@ class DatabaseManager:
     def create_tables(self):
         """회원 테이블 생성"""
         conn = self.get_connection()
+        try:
+            cursor = conn.cursor()
+            tables = {
+                row[0]
+                for row in cursor.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+            if "users" in tables:
+                columns = {
+                    row[1]: row[2].upper()
+                    for row in cursor.execute("PRAGMA table_info(users)")
+                }
+                legacy_schema = columns.get("id") != "TEXT"
+                for table in ("logs", "user_vec_mapping"):
+                    if table in tables:
+                        table_columns = {
+                            row[1]
+                            for row in cursor.execute(f"PRAGMA table_info({table})")
+                        }
+                        legacy_schema |= "user_id" not in table_columns
+                if legacy_schema:
+                    self._migrate_legacy_schema(conn, tables)
+
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    username TEXT NOT NULL UNIQUE,
+                    password TEXT NOT NULL,
+                    created_at DATETIME DEFAULT (datetime('now','localtime'))
+                )
+            ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    log_type TEXT NOT NULL,
+                    datetime DATETIME DEFAULT (datetime('now','localtime')),
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                )
+            ''')
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS user_vec_mapping (
+                    vector_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL UNIQUE,
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                )
+            """)
+            cursor.execute('''
+                CREATE VIRTUAL TABLE IF NOT EXISTS vectors USING vec0(
+                    embedding float[128]
+                )
+            ''')
+            conn.commit()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def create_user_id():
+        """난수 기반 SHA-256 사용자 ID 생성"""
+        return hashlib.sha256(os.urandom(32)).hexdigest()
+
+    def _migrate_legacy_schema(self, conn, tables):
+        """username을 참조하던 기존 테이블을 user_id 기반으로 변환"""
         cursor = conn.cursor()
-        
-        # 유저 테이블
+        users = cursor.execute(
+            "SELECT username, password, created_at FROM users"
+        ).fetchall()
+        user_ids = {
+            username: self.create_user_id()
+            for username, _, _ in users
+        }
+
+        logs = cursor.execute(
+            "SELECT id, username, log_type, datetime FROM logs"
+        ).fetchall() if "logs" in tables else []
+        mappings = cursor.execute(
+            "SELECT vector_id, username FROM user_vec_mapping"
+        ).fetchall() if "user_vec_mapping" in tables else []
+
+        cursor.execute("DROP TABLE IF EXISTS __vivi_users")
+        cursor.execute("DROP TABLE IF EXISTS __vivi_logs")
+        cursor.execute("DROP TABLE IF EXISTS __vivi_user_vec_mapping")
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, -- (Temp) id 랜덤화
+            CREATE TABLE __vivi_users (
+                id TEXT PRIMARY KEY NOT NULL,
                 username TEXT NOT NULL UNIQUE,
                 password TEXT NOT NULL,
                 created_at DATETIME DEFAULT (datetime('now','localtime'))
             )
         ''')
-
-        # 로그 테이블
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS logs (
+            CREATE TABLE __vivi_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT NOT NULL,
+                user_id TEXT NOT NULL,
                 log_type TEXT NOT NULL,
                 datetime DATETIME DEFAULT (datetime('now','localtime')),
-                FOREIGN KEY (username) REFERENCES users(username)
+                FOREIGN KEY (user_id) REFERENCES __vivi_users(id)
             )
         ''')
-
-        # 매핑 테이블
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS user_vec_mapping (
-            vector_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            FOREIGN KEY(username) REFERENCES users(username)
-        )
-        """)
-
-        # 벡터 테이블
         cursor.execute('''
-            CREATE VIRTUAL TABLE IF NOT EXISTS vectors USING vec0(
-                embedding float[128]
+            CREATE TABLE __vivi_user_vec_mapping (
+                vector_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL UNIQUE,
+                FOREIGN KEY (user_id) REFERENCES __vivi_users(id)
             )
         ''')
-        
-        conn.commit()
-        conn.close()
+        cursor.executemany(
+            "INSERT INTO __vivi_users (id, username, password, created_at) VALUES (?, ?, ?, ?)",
+            [
+                (user_ids[username], username, password, created_at)
+                for username, password, created_at in users
+            ],
+        )
+        cursor.executemany(
+            "INSERT INTO __vivi_logs (id, user_id, log_type, datetime) VALUES (?, ?, ?, ?)",
+            [
+                (log_id, user_ids[username], log_type, logged_at)
+                for log_id, username, log_type, logged_at in logs
+                if username in user_ids
+            ],
+        )
+        cursor.executemany(
+            "INSERT INTO __vivi_user_vec_mapping (vector_id, user_id) VALUES (?, ?)",
+            [
+                (vector_id, user_ids[username])
+                for vector_id, username in mappings
+                if username in user_ids
+            ],
+        )
+
+        for table in ("user_vec_mapping", "logs", "users"):
+            if table in tables:
+                cursor.execute(f"DROP TABLE {table}")
+        cursor.execute("ALTER TABLE __vivi_users RENAME TO users")
+        cursor.execute("ALTER TABLE __vivi_logs RENAME TO logs")
+        cursor.execute("ALTER TABLE __vivi_user_vec_mapping RENAME TO user_vec_mapping")
 
     def hash_password(self, password):
         """비밀번호 해싱 (SHA-256)"""
@@ -110,15 +206,16 @@ class DatabaseManager:
 
             # 비밀번호 해싱
             hashed_password = self.hash_password(password)
+            user_id = self.create_user_id()
 
             # 사용자 추가
             cursor.execute('''
-                INSERT INTO users (username, password)
-                VALUES (?, ?)
-            ''', (username, hashed_password))
+                INSERT INTO users (id, username, password)
+                VALUES (?, ?, ?)
+            ''', (user_id, username, hashed_password))
 
             if face_vector is not None:
-                success, message = self.mapping_user_and_vector(username, face_vector, conn)
+                success, message = self.mapping_user_and_vector(user_id, face_vector, conn)
                 if not success:
                     conn.rollback()
                     return False, message
@@ -144,21 +241,21 @@ class DatabaseManager:
             hashed_password = self.hash_password(password)
 
             cursor.execute('''
-                SELECT id FROM users 
+                SELECT id FROM users
                 WHERE username = ? AND password = ?
             ''', (username, hashed_password))
 
             user = cursor.fetchone()
 
             if user:
-                # 로그인 로그 기록
-                self.log_event(username, LogType.LOGIN)
-                return True, "로그인 성공!"
+                user_id = user[0]
+                self.log_event(user_id, LogType.LOGIN)
+                return True, "로그인 성공!", user_id
             else:
-                return False, "아이디 또는 비밀번호가 잘못되었습니다."
+                return False, "아이디 또는 비밀번호가 잘못되었습니다.", None
 
         except Exception as e:
-            return False, f"오류 발생: {str(e)}"
+            return False, f"오류 발생: {str(e)}", None
         finally:
             if conn is not None:
                 conn.close()
@@ -182,7 +279,7 @@ class DatabaseManager:
             if conn is not None:
                 conn.close()
 
-    def log_event(self, username, log_type):
+    def log_event(self, user_id, log_type):
         """로그 기록"""
         conn = None
         try:
@@ -193,9 +290,9 @@ class DatabaseManager:
             cursor = conn.cursor()
 
             cursor.execute('''
-                INSERT INTO logs (username, log_type)
+                INSERT INTO logs (user_id, log_type)
                 VALUES (?, ?)
-            ''', (username, log_type.value))
+            ''', (user_id, log_type.value))
 
             conn.commit()
             return True, "로그 기록 성공"
@@ -206,26 +303,28 @@ class DatabaseManager:
             if conn is not None:
                 conn.close()
 
-    def get_logs(self, username=None, limit=10):
+    def get_logs(self, user_id=None, limit=10):
         """로그 조회"""
         conn = None
         try:
             conn = self.get_connection()
             cursor = conn.cursor()
 
-            if username:
+            if user_id:
                 cursor.execute('''
-                    SELECT id, username, log_type, datetime 
-                    FROM logs 
-                    WHERE username = ?
-                    ORDER BY datetime DESC
+                    SELECT logs.id, users.username, logs.log_type, logs.datetime
+                    FROM logs
+                    JOIN users ON users.id = logs.user_id
+                    WHERE logs.user_id = ?
+                    ORDER BY logs.datetime DESC
                     LIMIT ?
-                ''', (username, limit))
+                ''', (user_id, limit))
             else:
                 cursor.execute('''
-                    SELECT id, username, log_type, datetime 
-                    FROM logs 
-                    ORDER BY datetime DESC
+                    SELECT logs.id, users.username, logs.log_type, logs.datetime
+                    FROM logs
+                    JOIN users ON users.id = logs.user_id
+                    ORDER BY logs.datetime DESC
                     LIMIT ?
                 ''', (limit,))
 
@@ -244,8 +343,8 @@ class DatabaseManager:
         values = vector.reshape(-1).tolist()
         return struct.pack(f"{len(values)}f", *(float(value) for value in values))
 
-    def get_user_vector(self, username):
-        """사용자 이름에 연결된 얼굴 벡터 조회"""
+    def get_user_vector(self, user_id):
+        """사용자 ID에 연결된 얼굴 벡터 조회"""
         conn = None
         try:
             conn = self.get_connection()
@@ -254,8 +353,8 @@ class DatabaseManager:
                 SELECT v.embedding
                 FROM user_vec_mapping AS m
                 JOIN vectors AS v ON v.rowid = m.vector_id
-                WHERE m.username = ?
-            """, (username,))
+                WHERE m.user_id = ?
+            """, (user_id,))
             row = cursor.fetchone()
 
             if row is None:
@@ -269,7 +368,7 @@ class DatabaseManager:
             if conn is not None:
                 conn.close()
 
-    def mapping_user_and_vector(self, username, vector, conn=None):
+    def mapping_user_and_vector(self, user_id, vector, conn=None):
         """매핑 테이블 삽입"""
         close_conn = conn is None
         try:
@@ -277,7 +376,7 @@ class DatabaseManager:
                 conn = self.get_connection()
             cursor = conn.cursor()
 
-            cursor.execute("INSERT INTO user_vec_mapping (username) VALUES (?)", (username,))
+            cursor.execute("INSERT INTO user_vec_mapping (user_id) VALUES (?)", (user_id,))
             vector_id = cursor.lastrowid
 
             cursor.execute("INSERT INTO vectors (rowid, embedding) VALUES (?, ?)", (vector_id, self.serialize_vector(vector)))

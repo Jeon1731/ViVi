@@ -8,7 +8,7 @@ class FaceRecognizer:
         self.vivi_model = "src/vivi/vivi_torchscript.pt"
         self.recognizer = None # (Temp) Singleton
         self.face_vector = None
-        self.attack = None # 0: real, 1: attack
+        self.attack = None # 0: real, 1~4: attack
 
     def run(self, frame, face):
         self.recognizer = ViVi.FaceRecognizerMFNV3.create(self.vivi_model) # model

@@ -27,8 +27,8 @@ class DatabaseLockTest(unittest.TestCase):
             try:
                 conn.execute("BEGIN IMMEDIATE")
                 conn.execute(
-                    "INSERT INTO users (username, password) VALUES (?, ?)",
-                    ("lock_holder", "hashed"),
+                    "INSERT INTO users (id, username, password) VALUES (?, ?, ?)",
+                    (db.create_user_id(), "lock_holder", "hashed"),
                 )
                 started.set()
                 time.sleep(8)
