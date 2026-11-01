@@ -27,14 +27,14 @@ class LoginForm(QWidget):
 
         self.id_textedit = QLabel("🐵을(를) 눌러 얼굴 인식을 완료해주세요.")
         self.id_textedit.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.id_textedit.setStyleSheet("""
-            QLabel {
-                background-color: ##F5F5F5;
-                padding: 10px 15px;
-                font-size: 13px;
-                color: #666666;
-            }
-        """)
+        # self.id_textedit.setStyleSheet("""
+        #     QLabel {
+        #         background-color: ##F5F5F5;
+        #         padding: 10px 15px;
+        #         font-size: 13px;
+        #         color: #666666;
+        #     }
+        # """)
 
         self.pw_textedit = QLineEdit()
         self.pw_textedit.setPlaceholderText("비밀번호를 입력해주세요.")
@@ -72,8 +72,9 @@ class LoginForm(QWidget):
         if self.controller.current_user is not None:
             username = self.db.get_username_by_id(self.controller.current_user)
         self.face_auth_success = True
-        self.id_textedit.setText(f"안녕하세요, {username}님.\n비밃번호를 입력해 로그인을 완료해주세요.")
-        self.face_auth_btn.setStyleSheet("background-color: #A6FF4D;")
+        self.id_textedit.setText(f"안녕하세요, {username}님.\n비밀번호를 입력해 로그인을 완료해주세요.")
+        # self.face_auth_btn.setStyleSheet("background-color: #A6FF4D;")
+        self.face_auth_btn.setText("✅")
 
     def handle_login(self):
         password = self.pw_textedit.text()
