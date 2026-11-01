@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButt
 import sys
 sys.path.append('src')
 from database import DatabaseManager
+from database import LogType
 
 class LoginForm(QWidget):
     def __init__(self, controller):
@@ -92,6 +93,8 @@ class LoginForm(QWidget):
                 # 입력 필드 초기화
                 self.id_textedit.clear()
                 self.pw_textedit.clear()
+                # 로그인 로그 기록
+                self.db.log_event(self.controller.current_user, LogType.LOGIN)
                 # 메인 화면으로 이동
                 self.controller.switch_to_screen(2)
             else:

@@ -250,7 +250,6 @@ class DatabaseManager:
             user = cursor.fetchone()
 
             if user:
-                self.log_event(user_id, LogType.LOGIN)
                 return True
             else:
                 return False
