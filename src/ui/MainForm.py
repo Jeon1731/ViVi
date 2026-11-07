@@ -73,7 +73,7 @@ class MainForm(QWidget):
 
     def start_monitoring(self):
         self.stop_monitoring()
-        self.monitor_protector = MonitorProtector(self.controller.current_user, 5, self)
+        self.monitor_protector = MonitorProtector(self.controller.current_user, 3, self)
         self.monitor_protector.check_finished.connect(self.handle_monitor_result)
         self.monitor_protector.error.connect(self.handle_monitor_error)
         self.monitor_protector.start()
