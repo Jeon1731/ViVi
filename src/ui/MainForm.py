@@ -1,7 +1,9 @@
 # 메인 화면 # index2
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit, QPushButton
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QLabel, QTextEdit, QPushButton, QMessageBox
+)
 import sys
 sys.path.append('src')
 from database import DatabaseManager
@@ -76,6 +78,9 @@ class MainForm(QWidget):
         self.monitor_protector = MonitorProtector(self.controller.current_user, 3, self)
         self.monitor_protector.check_finished.connect(self.handle_monitor_result)
         self.monitor_protector.error.connect(self.handle_monitor_error)
+        self.monitor_protector.unregistered_face_detected.connect(
+            self.handle_unregistered_face
+        )
         self.monitor_protector.start()
 
     def stop_monitoring(self):
@@ -96,6 +101,11 @@ class MainForm(QWidget):
         self.toggle_btn.setChecked(False)
         self.toggle_btn.setText("▶️")
         self.log_display.setPlainText(message)
+
+    def handle_unregistered_face(self):
+        QMessageBox.warning(
+            self, "경고", "등록되지 않은 얼굴이 일정 시간 이상 감지되었습니다."
+        )
 
     def load_logs(self):
         """현재 사용자 로그 조회 및 표시"""
